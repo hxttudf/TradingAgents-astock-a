@@ -613,8 +613,21 @@ def get_user_selections():
 
 
 def get_ticker():
-    """Get ticker symbol from user input."""
-    return typer.prompt("", default="SPY")
+    """Get ticker symbol from user input.
+
+    Validates the ticker is safe to use as a filesystem path component before
+    returning — it is later interpolated into ``results_dir / ticker / date``
+    and the report path, so an input like ``../../tmp/evil`` would otherwise
+    write outside the intended directory (#51). Re-prompts on invalid input.
+    """
+    from tradingagents.dataflows.utils import safe_ticker_component
+
+    while True:
+        raw = typer.prompt("", default="SPY")
+        try:
+            return safe_ticker_component(raw.strip())
+        except ValueError as exc:
+            console.print(f"[red]Error: Invalid ticker — {exc}[/red]")
 
 
 def get_analysis_date():
@@ -1185,13 +1198,27 @@ def run_analysis(checkpoint: bool = False):
             "Save path (press Enter for default)",
             default=str(default_path)
         ).strip()
-        save_path = Path(save_path_str)
+        save_path = Path(save_path_str).resolve()
+        # The save path is user-supplied and used for mkdir + file writes.
+        # Confirm before writing anywhere outside the current directory (#51).
+        proceed = True
         try:
-            report_file = save_report_to_disk(final_state, selections["ticker"], save_path)
-            console.print(f"\n[green]✓ Report saved to:[/green] {save_path.resolve()}")
-            console.print(f"  [dim]Complete report:[/dim] {report_file.name}")
-        except Exception as e:
-            console.print(f"[red]Error saving report: {e}[/red]")
+            save_path.relative_to(Path.cwd().resolve())
+        except ValueError:
+            console.print(
+                f"[yellow]⚠ Save path is outside the current directory:[/yellow] {save_path}"
+            )
+            confirm = typer.prompt("Proceed anyway?", default="N").strip().upper()
+            proceed = confirm in ("Y", "YES")
+        if proceed:
+            try:
+                report_file = save_report_to_disk(final_state, selections["ticker"], save_path)
+                console.print(f"\n[green]✓ Report saved to:[/green] {save_path}")
+                console.print(f"  [dim]Complete report:[/dim] {report_file.name}")
+            except Exception as e:
+                console.print(f"[red]Error saving report: {e}[/red]")
+        else:
+            console.print("[dim]Save cancelled.[/dim]")
 
     # Prompt to display full report
     display_choice = typer.prompt("\nDisplay full report on screen?", default="Y").strip().upper()
