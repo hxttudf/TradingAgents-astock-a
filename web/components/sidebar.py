@@ -204,8 +204,12 @@ def render_sidebar() -> None:
         else:
             if resolved_code != ticker.strip():
                 st.success(f"✅ {ticker.strip()} → {resolved_code}")
+            display_name = ticker.strip()
+            if resolved_code == display_name:
+                display_name = ""
             st.session_state["start_analysis"] = {
                 "ticker": resolved_code,
+                "stock_name": display_name,
                 "trade_date": trade_date.strftime("%Y-%m-%d"),
             }
             st.session_state["viewing_history"] = None

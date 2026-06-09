@@ -188,6 +188,7 @@ if start_req:
     tracker = ProgressTracker(
         ticker=start_req["ticker"],
         trade_date=start_req["trade_date"],
+        stock_name=start_req.get("stock_name", ""),
     )
     st.session_state["tracker"] = tracker
     run_analysis_in_thread(
@@ -203,6 +204,14 @@ if start_req:
 tracker: ProgressTracker | None = st.session_state.get("tracker")
 viewing_history: str | None = st.session_state.get("viewing_history")
 
+def _stock_name(code: str) -> str:
+    """Resolve a 6-digit A-stock code to its Chinese name."""
+    try:
+        _, c2n = __import__("tradingagents.dataflows.a_stock", fromlist=["_build_name_code_map"])._build_name_code_map()
+        return c2n.get(code, "")
+    except Exception:
+        return ""
+
 # State 1: Viewing a historical analysis
 if viewing_history:
     try:
@@ -210,7 +219,8 @@ if viewing_history:
         signal = extract_signal(state)
         ticker = Path(viewing_history).parent.parent.name
         trade_date = Path(viewing_history).stem.replace("full_states_log_", "")
-        render_report(state, ticker, trade_date, signal)
+        name = _stock_name(ticker)
+        render_report(state, ticker, trade_date, signal, stock_name=name)
     except Exception as exc:
         st.error(f"加载失败: {exc}")
 
@@ -222,12 +232,14 @@ elif tracker and tracker.is_running:
 
 # State 3: Analysis complete
 elif tracker and tracker.is_complete:
+    name = tracker.stock_name or _stock_name(tracker.ticker)
     render_report(
         tracker.final_state,
         tracker.ticker,
         tracker.trade_date,
         tracker.signal,
         elapsed=tracker.elapsed,
+        stock_name=name,
     )
 
 # State 4: Analysis errored

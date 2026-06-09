@@ -58,6 +58,7 @@ def render_report(
     trade_date: str,
     signal: dict[str, str] | str,
     elapsed: float | None = None,
+    stock_name: str = "",
 ) -> None:
     """Render the full analysis report with a clear reading hierarchy.
 
@@ -85,6 +86,8 @@ def render_report(
     if elapsed is not None:
         m, s = divmod(int(elapsed), 60)
         stats_html = f'<div style="font-size:0.9rem; color:#888; margin-top:0.3rem;">耗时 {m}:{s:02d}</div>'
+
+    stock_name_label = f"（{stock_name}）" if stock_name else ""
 
     if isinstance(signal, str):
         signals = {"short": signal, "medium": signal, "long": signal}
@@ -115,7 +118,7 @@ def render_report(
                 {signal_cards}
             </div>
             <div style="font-size:1.2rem; color:#f5f1eb; margin-top:0.3rem;">
-                {ticker} · {trade_date}
+                {ticker}{stock_name_label} · {trade_date}
             </div>
             {stats_html}
         </div>
