@@ -32,7 +32,7 @@ def parse_rating(text: str, default: str = "Hold") -> str:
 
     Two-pass strategy:
     1. Look for an explicit "Rating: X" label (tolerant of markdown bold).
-    2. Fall back to the first 5-tier rating word found anywhere in the text.
+    2. Fall back to the last 5-tier rating word found anywhere in the text.
 
     Returns a Title-cased rating string, or ``default`` if no rating word appears.
     """
@@ -41,10 +41,13 @@ def parse_rating(text: str, default: str = "Hold") -> str:
         if m and m.group(1).lower() in _RATING_SET:
             return m.group(1).capitalize()
 
+    last: str | None = None
     for line in text.splitlines():
         for word in line.lower().split():
             clean = word.strip("*:.,")
             if clean in _RATING_SET:
-                return clean.capitalize()
+                last = clean.capitalize()
+    if last:
+        return last
 
     return default

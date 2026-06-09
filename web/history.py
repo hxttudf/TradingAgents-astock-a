@@ -54,16 +54,17 @@ def load_analysis(path: str) -> dict[str, Any]:
 def extract_signal(state: dict[str, Any]) -> str:
     """Extract the short signal (Buy/Sell/Hold) from a final state dict.
 
-    Priority order:
-    1. ``final_trade_decision`` — Portfolio Manager 最终裁定，最权威
-    2. 其余字段兜底
-
-    所有字段都走 ``parse_rating`` 而非关键字匹配，避免中间分析文本
-    中的 "Hold" 干扰最终信号。
+    Priority:
+    1. ``final_trade_decision`` — Portfolio Manager 最终裁定，完全信任
+    2. 其余字段兜底（跳过 Hold，避免中间分析文本干扰）
     """
     from tradingagents.agents.utils.rating import parse_rating
 
-    for field in ("final_trade_decision", "trader_investment_decision", "investment_plan"):
+    text = state.get("final_trade_decision", "")
+    if text:
+        return parse_rating(text)
+
+    for field in ("trader_investment_decision", "investment_plan"):
         text = state.get(field, "")
         if text:
             rating = parse_rating(text)
