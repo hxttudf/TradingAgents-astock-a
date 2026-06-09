@@ -28,10 +28,21 @@ def get_history() -> list[dict[str, str]]:
             continue
         date = match.group(1)
         ticker = log_file.parent.parent.name
-        entries.append({"ticker": ticker, "date": date, "path": str(log_file)})
+        mtime = log_file.stat().st_mtime
+        entries.append({"ticker": ticker, "date": date, "path": str(log_file), "mtime": mtime})
 
-    entries.sort(key=lambda e: e["date"], reverse=True)
+    entries.sort(key=lambda e: e["mtime"], reverse=True)
     return entries
+
+
+def delete_analysis(path: str) -> None:
+    """Delete an analysis log file and clean up empty parent directories."""
+    p = Path(path)
+    if p.exists():
+        p.unlink()
+    for parent in [p.parent, p.parent.parent]:
+        if parent.exists() and not any(parent.iterdir()):
+            parent.rmdir()
 
 
 def load_analysis(path: str) -> dict[str, Any]:
@@ -41,19 +52,21 @@ def load_analysis(path: str) -> dict[str, Any]:
 
 
 def extract_signal(state: dict[str, Any]) -> str:
-    """Extract the short signal (Buy/Sell/Hold) from a final state dict."""
-    import re
+    """Extract the short signal (Buy/Sell/Hold) from a final state dict.
 
-    for field in (
-        "investment_plan",
-        "trader_investment_decision",
-        "final_trade_decision",
-    ):
+    Priority order:
+    1. ``final_trade_decision`` — Portfolio Manager 最终裁定，最权威
+    2. 其余字段兜底
+
+    所有字段都走 ``parse_rating`` 而非关键字匹配，避免中间分析文本
+    中的 "Hold" 干扰最终信号。
+    """
+    from tradingagents.agents.utils.rating import parse_rating
+
+    for field in ("final_trade_decision", "trader_investment_decision", "investment_plan"):
         text = state.get(field, "")
-        if not text:
-            continue
-        cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-        for keyword in ("BUY", "SELL", "HOLD"):
-            if keyword in cleaned.upper():
-                return keyword.capitalize()
-    return "N/A"
+        if text:
+            rating = parse_rating(text)
+            if rating != "Hold":
+                return rating
+    return "Hold"

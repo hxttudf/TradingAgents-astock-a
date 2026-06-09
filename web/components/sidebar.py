@@ -7,7 +7,7 @@ from datetime import date
 import streamlit as st
 
 from tradingagents.llm_clients.model_catalog import MODEL_OPTIONS
-from web.history import get_history
+from web.history import delete_analysis, get_history
 
 # Provider display names in recommended order
 _PROVIDERS: list[tuple[str, str]] = [
@@ -41,8 +41,42 @@ def _resolve_user_input(raw: str) -> tuple[str, str | None]:
         return "", str(e)
 
 
+def _restore_llm_config_from_params() -> None:
+    """Restore LLM config from query params into session state (page refresh)."""
+    if "llm_provider" in st.query_params:
+        p = st.query_params["llm_provider"]
+        if p in _PROVIDER_KEYS:
+            st.session_state.setdefault("llm_provider", p)
+            st.session_state.setdefault("llm_provider_idx", _PROVIDER_KEYS.index(p))
+            if p in MODEL_OPTIONS:
+                qm = st.query_params.get("quick_think_llm", "")
+                if qm:
+                    q_vals = [v for _, v in MODEL_OPTIONS[p]["quick"]]
+                    if qm in q_vals:
+                        st.session_state.setdefault("quick_model_idx", q_vals.index(qm))
+                dm = st.query_params.get("deep_think_llm", "")
+                if dm:
+                    d_vals = [v for _, v in MODEL_OPTIONS[p]["deep"]]
+                    if dm in d_vals:
+                        st.session_state.setdefault("deep_model_idx", d_vals.index(dm))
+    if "llm_base_url" in st.query_params:
+        st.session_state.setdefault("llm_base_url", st.query_params["llm_base_url"])
+
+
+def _persist_llm_config_to_params() -> None:
+    """Save current LLM config to query params for cross-refresh persistence."""
+    st.query_params["llm_provider"] = st.session_state.get("llm_provider", "minimax")
+    st.query_params["quick_think_llm"] = st.session_state.get("quick_think_llm", "")
+    st.query_params["deep_think_llm"] = st.session_state.get("deep_think_llm", "")
+    if base_url := st.session_state.get("llm_base_url"):
+        st.query_params["llm_base_url"] = base_url
+    elif "llm_base_url" in st.query_params:
+        del st.query_params["llm_base_url"]
+
+
 def _render_llm_config() -> None:
     """Render LLM provider and model selection controls."""
+    _restore_llm_config_from_params()
 
     provider_idx = st.selectbox(
         "LLM 供应商",
@@ -100,6 +134,8 @@ def _render_llm_config() -> None:
             "也可在 .env 里设 BACKEND_URL 代替此处。"
         ),
     )
+
+    _persist_llm_config_to_params()
 
 
 def render_sidebar() -> None:
@@ -169,11 +205,31 @@ def render_sidebar() -> None:
         return
 
     for entry in history[:20]:
-        t, d = entry["ticker"], entry["date"]
-        label = f"{t}  ·  {d}"
-        if st.button(label, key=f"hist_{t}_{d}", use_container_width=True):
-            st.session_state["viewing_history"] = entry["path"]
-            st.session_state["start_analysis"] = None
+        t, d, p = entry["ticker"], entry["date"], entry["path"]
+        cols = st.columns([5, 1])
+        with cols[0]:
+            if st.button(f"{t}  ·  {d}", key=f"hist_{t}_{d}", use_container_width=True):
+                st.session_state["viewing_history"] = p
+                st.session_state["start_analysis"] = None
+        with cols[1]:
+            if st.button("🗑️", key=f"del_{t}_{d}", help="删除此记录"):
+                st.session_state["pending_delete"] = {"ticker": t, "date": d, "path": p}
+                st.rerun()
+
+    pending = st.session_state.get("pending_delete")
+    if pending:
+        st.markdown("---")
+        st.warning(f"确认删除 {pending['ticker']} · {pending['date']} 的分析记录？此操作不可撤销。")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("🗑️ 确认删除", key="confirm_delete_yes", type="primary"):
+                delete_analysis(pending["path"])
+                st.session_state.pop("pending_delete", None)
+                st.rerun()
+        with c2:
+            if st.button("取消", key="confirm_delete_no"):
+                st.session_state.pop("pending_delete", None)
+                st.rerun()
 
     st.markdown("---")
     st.caption("⚠️ 仅供学习研究，不构成投资建议")
