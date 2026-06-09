@@ -15,8 +15,8 @@ _UI_CONFIG_PATH = Path.home() / ".tradingagents" / "ui_config.json"
 
 # Provider display names in recommended order
 _PROVIDERS: list[tuple[str, str]] = [
-    ("MiniMax（推荐·国内直连）", "minimax"),
-    ("DeepSeek", "deepseek"),
+    ("DeepSeek（推荐）", "deepseek"),
+    ("MiniMax（国内直连）", "minimax"),
     ("通义千问 Qwen", "qwen"),
     ("智谱 GLM", "glm"),
     ("OpenAI", "openai"),
@@ -75,7 +75,7 @@ def _load_llm_config() -> None:
 def _save_llm_config() -> None:
     """Save current LLM config to local file for cross-refresh persistence."""
     cfg = {
-        "llm_provider": st.session_state.get("llm_provider", "minimax"),
+        "llm_provider": st.session_state.get("llm_provider", "deepseek"),
         "quick_think_llm": st.session_state.get("quick_think_llm", ""),
         "deep_think_llm": st.session_state.get("deep_think_llm", ""),
     }
