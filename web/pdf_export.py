@@ -131,6 +131,9 @@ def _strip_md_inline(text: str) -> str:
     return text
 
 
+_HORIZON_LABELS = {"short": "短线", "medium": "中线", "long": "长线"}
+
+
 def _signal_color(signal: str) -> tuple[int, int, int]:
     s = signal.upper()
     if "BUY" in s:
@@ -138,6 +141,12 @@ def _signal_color(signal: str) -> tuple[int, int, int]:
     if "SELL" in s:
         return (239, 68, 68)
     return (251, 191, 36)
+
+
+def _normalize_signals(signal: dict[str, str] | str) -> dict[str, str]:
+    if isinstance(signal, str):
+        return {"short": signal, "medium": signal, "long": signal}
+    return signal
 
 
 _REPORT_SECTIONS = [
@@ -152,11 +161,11 @@ _REPORT_SECTIONS = [
 
 
 class _ReportPDF(FPDF):
-    def __init__(self, ticker: str, trade_date: str, signal: str) -> None:
+    def __init__(self, ticker: str, trade_date: str, signal: dict[str, str] | str) -> None:
         super().__init__()
         self.ticker = ticker
         self.trade_date = trade_date
-        self.signal = signal
+        self.signals = _normalize_signals(signal)
         font_path = _find_cjk_font()
         if not font_path:
             raise RuntimeError(
@@ -210,11 +219,15 @@ class _ReportPDF(FPDF):
         self.cell(0, 10, f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}", align="C")
         self.ln(20)
 
-        r, g, b = _signal_color(self.signal)
-        self._use_font("B", 40)
-        self.set_text_color(r, g, b)
-        self.cell(0, 20, self.signal.upper(), align="C")
-        self.ln(20)
+        for i, key in enumerate(("short", "medium", "long")):
+            s = self.signals.get(key, "Hold")
+            r, g, b = _signal_color(s)
+            self._use_font("B", 30 if i == 1 else 26)
+            self.set_text_color(r, g, b)
+            label = _HORIZON_LABELS[key]
+            self.cell(0, 14, f"{label}: {s.upper()}", align="C")
+            self.ln(14)
+        self.ln(8)
 
         self._use_font("", 9)
         self.set_text_color(120, 120, 120)
@@ -388,7 +401,7 @@ def _collect_sections(final_state: dict[str, Any]) -> list[tuple[str, str]]:
     return sections
 
 
-def generate_pdf(final_state: dict[str, Any], ticker: str, trade_date: str, signal: str) -> bytes:
+def generate_pdf(final_state: dict[str, Any], ticker: str, trade_date: str, signal: dict[str, str] | str) -> bytes:
     """Generate a PDF report and return it as bytes.
 
     Raises RuntimeError if the wrong fpdf library is installed (issue #54) or no
@@ -407,19 +420,25 @@ def generate_pdf(final_state: dict[str, Any], ticker: str, trade_date: str, sign
     return bytes(pdf.output())
 
 
-def generate_markdown(final_state: dict[str, Any], ticker: str, trade_date: str, signal: str) -> str:
+def generate_markdown(final_state: dict[str, Any], ticker: str, trade_date: str, signal: dict[str, str] | str) -> str:
     """Generate a Markdown report. Font-free and always works — the safe export.
 
     This is the bulletproof alternative to PDF when the system lacks a CJK
     font (common on minimal Linux/Windows installs).
     """
+    signals = _normalize_signals(signal)
+    signal_lines = "\n".join(
+        f"- **{_HORIZON_LABELS[k]}**：{signals.get(k, 'Hold').upper()}"
+        for k in ("short", "medium", "long")
+    )
     out = [
         "# A股多Agent投研分析报告",
         "",
         f"- **股票代码**：{ticker}",
         f"- **分析日期**：{trade_date}",
         f"- **生成时间**：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        f"- **交易信号**：**{signal.upper()}**",
+        "",
+        signal_lines,
         "",
         "> ⚠️ 本报告由 AI 多 Agent 系统自动生成，仅供学习研究与技术演示，"
         "不构成任何投资建议。投资决策请咨询持牌专业机构，使用本报告所产生的"

@@ -39,7 +39,7 @@ def create_portfolio_manager(llm):
             else ""
         )
 
-        prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
+        prompt = f"""As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision across three time horizons.
 
 {instrument_context}
 
@@ -55,12 +55,17 @@ def create_portfolio_manager(llm):
 
 ---
 
-**Rating Scale** (use exactly one):
+**Rating Scale** (use exactly one per time horizon):
 - **Buy**: Strong conviction to enter or add to position
 - **Overweight**: Favorable outlook, gradually increase exposure
 - **Hold**: Maintain current position, no action needed
 - **Underweight**: Reduce exposure, take partial profits
 - **Sell**: Exit position or avoid entry
+
+**Time Horizon Guidance:**
+- **Short-term (1-30 trading days)**: Focus on technical analysis, momentum, volume, short-term catalysts, and immediate price action. A-stock T+1 and daily price limits are critical constraints.
+- **Medium-term (1-6 months)**: Focus on fundamentals, industry cycle, earnings trajectory, valuation, and macro factors.
+- **Long-term (6+ months)**: Focus on competitive moat, growth potential, structural trends, and business transformation.
 
 **Context:**
 - Research Manager's investment plan: **{research_plan}**
@@ -71,7 +76,7 @@ def create_portfolio_manager(llm):
 
 ---
 
-Be decisive and ground every conclusion in specific evidence from the analysts.{get_language_instruction()}"""
+Be decisive and ground every conclusion in specific evidence from the analysts. Output a separate rating for each time horizon — they may differ.{get_language_instruction()}"""
 
         final_trade_decision = invoke_structured_or_freetext(
             structured_llm,
@@ -80,6 +85,13 @@ Be decisive and ground every conclusion in specific evidence from the analysts.{
             render_pm_decision,
             "Portfolio Manager",
         )
+
+        from tradingagents.agents.utils.rating import parse_ratings, parse_rating
+
+        ratings = parse_ratings(final_trade_decision)
+        if not ratings:
+            r = parse_rating(final_trade_decision)
+            ratings = {"short": r, "medium": r, "long": r}
 
         new_risk_debate_state = {
             "judge_decision": final_trade_decision,
@@ -96,6 +108,9 @@ Be decisive and ground every conclusion in specific evidence from the analysts.{
 
         return {
             "risk_debate_state": new_risk_debate_state,
+            "short_term_rating": ratings["short"],
+            "medium_term_rating": ratings["medium"],
+            "long_term_rating": ratings["long"],
             "final_trade_decision": final_trade_decision,
         }
 

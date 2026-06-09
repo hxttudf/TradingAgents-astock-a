@@ -23,6 +23,9 @@ def _signal_style(signal: str) -> tuple[str, str]:
     return "#fbbf24", "持有"
 
 
+_HORIZON_CN = {"short": "短线", "medium": "中线", "long": "长线"}
+
+
 _ANALYST_SECTIONS = [
     ("market_report", "📊 技术分析"),
     ("sentiment_report", "💬 市场情绪"),
@@ -38,17 +41,36 @@ def render_report(
     final_state: dict[str, Any],
     ticker: str,
     trade_date: str,
-    signal: str,
+    signal: dict[str, str] | str,
     elapsed: float | None = None,
 ) -> None:
-    """Render the full analysis report."""
+    """Render the full analysis report.
 
-    color, cn_signal = _signal_style(signal)
+    ``signal`` is a dict like ``{"short": "Sell", "medium": "Hold", "long": "Buy"}``,
+    or a plain string for legacy callers.
+    """
 
     stats_html = ""
     if elapsed is not None:
         m, s = divmod(int(elapsed), 60)
         stats_html = f'<div style="font-size:0.9rem; color:#888; margin-top:0.3rem;">耗时 {m}:{s:02d}</div>'
+
+    if isinstance(signal, str):
+        signals = {"short": signal, "medium": signal, "long": signal}
+    else:
+        signals = signal
+
+    signal_cards = ""
+    for key in ("short", "medium", "long"):
+        s = signals.get(key, "Hold")
+        color, _ = _signal_style(s)
+        display = s.upper()
+        signal_cards += f"""
+            <div style="flex:1; min-width:120px; padding:0.8rem;">
+                <div style="font-size:0.7rem; color:#888; letter-spacing:1px;">{_HORIZON_CN[key]}</div>
+                <div style="font-size:2rem; font-weight:900; color:{color}; margin:0.2rem 0;">{display}</div>
+            </div>
+        """
 
     st.markdown(
         f"""
@@ -56,15 +78,15 @@ def render_report(
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             border: 1px solid #333;
             border-radius: 16px;
-            padding: 2rem;
+            padding: 1.2rem;
             text-align: center;
             margin: 1rem 0 2rem;
         ">
             <div style="font-size:0.9rem; color:#888; letter-spacing:2px;">TRADING SIGNAL</div>
-            <div style="font-size:3.5rem; font-weight:900; color:{color}; margin:0.3rem 0;">
-                {signal.upper()}
+            <div style="display:flex; justify-content:center; gap:0.5rem; flex-wrap:wrap;">
+                {signal_cards}
             </div>
-            <div style="font-size:1.2rem; color:#f5f1eb;">
+            <div style="font-size:1.2rem; color:#f5f1eb; margin-top:0.3rem;">
                 {ticker} · {trade_date}
             </div>
             {stats_html}

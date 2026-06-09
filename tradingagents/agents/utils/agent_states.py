@@ -76,4 +76,7 @@ class AgentState(MessagesState):
         RiskDebateState, "Current state of the debate on evaluating risk"
     ]
     final_trade_decision: Annotated[str, "Final decision made by the Risk Analysts"]
+    short_term_rating: Annotated[str, "短线评级 (1-30 trading days): Buy/Overweight/Hold/Underweight/Sell"]
+    medium_term_rating: Annotated[str, "中线评级 (1-6 months): Buy/Overweight/Hold/Underweight/Sell"]
+    long_term_rating: Annotated[str, "长线评级 (6+ months): Buy/Overweight/Hold/Underweight/Sell"]
     past_context: Annotated[str, "Memory log context injected at run start (same-ticker decisions + cross-ticker lessons)"]

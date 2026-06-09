@@ -27,6 +27,34 @@ _RATING_SET = {r.lower() for r in RATINGS_5_TIER}
 _RATING_LABEL_RE = re.compile(r"rating.*?[:\-][\s*]*(\w+)", re.IGNORECASE)
 
 
+_HORIZON_LABELS: dict[str, str] = {
+    "短线": "short",
+    "中线": "medium",
+    "长线": "long",
+}
+
+# Matches "**短线评级**: Sell" / "**中线评级**:Hold" — tolerates markdown bold
+_HORIZON_RE = re.compile(
+    r"\*\*(?P<label>" + "|".join(_HORIZON_LABELS) + r")评级[\s*]*:[\s*]*(?P<rating>\w+)",
+)
+
+
+def parse_ratings(text: str) -> dict[str, str]:
+    """Extract short/medium/long term ratings from rendered PM decision.
+
+    Returns a dict like ``{"short": "Sell", "medium": "Hold", "long": "Buy"}``.
+    Only labels found in the text are included; callers should fall back to
+    ``parse_rating`` for any missing horizon.
+    """
+    ratings: dict[str, str] = {}
+    for m in _HORIZON_RE.finditer(text):
+        label = m.group("label")
+        rating = m.group("rating")
+        if rating.lower() in _RATING_SET:
+            ratings[_HORIZON_LABELS[label]] = rating.capitalize()
+    return ratings
+
+
 def parse_rating(text: str, default: str = "Hold") -> str:
     """Heuristically extract a 5-tier rating from prose text.
 

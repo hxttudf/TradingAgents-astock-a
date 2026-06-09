@@ -93,7 +93,7 @@ def _run(ticker: str, trade_date: str, config: dict, tracker: ProgressTracker) -
         s = stats.get_stats()
         tracker.update_stats(s["llm_calls"], s["tool_calls"], s["tokens_in"], s["tokens_out"])
 
-    signal = graph.process_signal(last_chunk.get("final_trade_decision", ""))
+    signal = graph.process_signal(last_chunk)
 
     graph.ticker = ticker
     graph._log_state(trade_date, last_chunk)

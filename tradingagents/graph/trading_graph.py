@@ -381,7 +381,7 @@ class TradingAgentsGraph:
                 self.config["data_cache_dir"], company_name, str(trade_date)
             )
 
-        return final_state, self.process_signal(final_state["final_trade_decision"])
+        return final_state, self.process_signal(final_state)
 
     def _log_state(self, trade_date, final_state):
         """Log the final state to a JSON file."""
@@ -416,6 +416,9 @@ class TradingAgentsGraph:
             },
             "investment_plan": final_state["investment_plan"],
             "final_trade_decision": final_state["final_trade_decision"],
+            "short_term_rating": final_state.get("short_term_rating", ""),
+            "medium_term_rating": final_state.get("medium_term_rating", ""),
+            "long_term_rating": final_state.get("long_term_rating", ""),
         }
 
         # Save to file. Reject ticker values that would escape the

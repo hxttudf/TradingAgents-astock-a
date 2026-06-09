@@ -43,7 +43,7 @@ class ProgressTracker:
     stage_reports: dict[str, str] = field(default_factory=dict)
 
     final_state: dict[str, Any] = field(default_factory=dict)
-    signal: str = ""
+    signal: dict[str, str] = field(default_factory=lambda: {"short": "Hold", "medium": "Hold", "long": "Hold"})
 
     llm_calls: int = 0
     tool_calls: int = 0
@@ -64,7 +64,7 @@ class ProgressTracker:
                 self.stage_reports[stage_id] = report
             self.current_stage = ""
 
-    def mark_complete(self, final_state: dict, signal: str) -> None:
+    def mark_complete(self, final_state: dict, signal: dict) -> None:
         with self._lock:
             self.final_state = final_state
             self.signal = signal

@@ -177,22 +177,39 @@ class PortfolioDecision(BaseModel):
     the rating-scale guidance.
     """
 
-    rating: PortfolioRating = Field(
+    short_term_rating: PortfolioRating = Field(
         description=(
-            "The final position rating. Exactly one of Buy / Overweight / Hold / "
-            "Underweight / Sell, picked based on the analysts' debate."
+            "短线评级（1-30 个交易日）。Exactly one of Buy / Overweight / Hold / "
+            "Underweight / Sell, assessing the stock's near-term price action "
+            "based on technicals, momentum, and immediate catalysts."
+        ),
+    )
+    medium_term_rating: PortfolioRating = Field(
+        description=(
+            "中线评级（1-6 个月）。Exactly one of Buy / Overweight / Hold / "
+            "Underweight / Sell, assessing the stock's medium-term trend "
+            "based on fundamentals, industry cycle, and macro factors."
+        ),
+    )
+    long_term_rating: PortfolioRating = Field(
+        description=(
+            "长线评级（6 个月以上）。Exactly one of Buy / Overweight / Hold / "
+            "Underweight / Sell, assessing the stock's long-term investment "
+            "value based on competitive moat, growth potential, and structural trends."
         ),
     )
     executive_summary: str = Field(
         description=(
             "A concise action plan covering entry strategy, position sizing, "
-            "key risk levels, and time horizon. Two to four sentences."
+            "key risk levels, and how the three time-horizon ratings interact. "
+            "Two to four sentences."
         ),
     )
     investment_thesis: str = Field(
         description=(
             "Detailed reasoning anchored in specific evidence from the analysts' "
-            "debate. If prior lessons are referenced in the prompt context, "
+            "debate, explaining why each of the three time horizons gets its "
+            "rating. If prior lessons are referenced in the prompt context, "
             "incorporate them; otherwise rely solely on the current analysis."
         ),
     )
@@ -200,22 +217,18 @@ class PortfolioDecision(BaseModel):
         default=None,
         description="Optional target price in the instrument's quote currency.",
     )
-    time_horizon: Optional[str] = Field(
-        default=None,
-        description="Optional recommended holding period, e.g. '3-6 months'.",
-    )
 
 
 def render_pm_decision(decision: PortfolioDecision) -> str:
-    """Render a PortfolioDecision back to the markdown shape the rest of the system expects.
+    """Render a PortfolioDecision back to markdown.
 
-    Memory log, CLI display, and saved report files all read this markdown,
-    so the rendered output preserves the exact section headers (``**Rating**``,
-    ``**Executive Summary**``, ``**Investment Thesis**``) that downstream
-    parsers and the report writers already handle.
+    The rendered output uses Chinese section headers for the three ratings
+    so ``parse_ratings`` in ``rating.py`` can extract them deterministically.
     """
     parts = [
-        f"**Rating**: {decision.rating.value}",
+        f"**短线评级**: {decision.short_term_rating.value}",
+        f"**中线评级**: {decision.medium_term_rating.value}",
+        f"**长线评级**: {decision.long_term_rating.value}",
         "",
         f"**Executive Summary**: {decision.executive_summary}",
         "",
@@ -223,6 +236,4 @@ def render_pm_decision(decision: PortfolioDecision) -> str:
     ]
     if decision.price_target is not None:
         parts.extend(["", f"**Price Target**: {decision.price_target}"])
-    if decision.time_horizon:
-        parts.extend(["", f"**Time Horizon**: {decision.time_horizon}"])
     return "\n".join(parts)

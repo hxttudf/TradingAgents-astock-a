@@ -51,23 +51,18 @@ def load_analysis(path: str) -> dict[str, Any]:
         return json.load(f)
 
 
-def extract_signal(state: dict[str, Any]) -> str:
-    """Extract the short signal (Buy/Sell/Hold) from a final state dict.
+def extract_signal(state: dict[str, Any]) -> dict[str, str]:
+    """Extract short/medium/long term signals from a final state dict.
 
-    Priority:
-    1. ``final_trade_decision`` — Portfolio Manager 最终裁定，完全信任
-    2. 其余字段兜底（跳过 Hold，避免中间分析文本干扰）
+    Returns ``{"short": "Sell", "medium": "Hold", "long": "Buy"}``.
+    Prefers dedicated state fields; falls back to parsing ``final_trade_decision`` text.
     """
-    from tradingagents.agents.utils.rating import parse_rating
+    from tradingagents.graph.signal_processing import extract_signal_from_state
 
-    text = state.get("final_trade_decision", "")
-    if text:
-        return parse_rating(text)
+    return extract_signal_from_state(state)
 
-    for field in ("trader_investment_decision", "investment_plan"):
-        text = state.get(field, "")
-        if text:
-            rating = parse_rating(text)
-            if rating != "Hold":
-                return rating
-    return "Hold"
+
+def extract_signal_legacy(state: dict[str, Any]) -> str:
+    """Legacy single-signal extraction for backward compat (e.g. history listing)."""
+    signals = extract_signal(state)
+    return signals.get("short", "Hold")

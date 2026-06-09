@@ -1,31 +1,51 @@
-"""Extract the 5-tier portfolio rating from the Portfolio Manager's decision.
+"""Extract short/medium/long-term ratings from the Portfolio Manager's decision.
 
-The Portfolio Manager produces a typed ``PortfolioDecision`` via structured
-output and renders it to markdown that always carries a ``**Rating**: X``
-header (see :func:`tradingagents.agents.schemas.render_pm_decision`).  The
-deterministic heuristic in :mod:`tradingagents.agents.utils.rating` is more
-than sufficient to extract that rating; no extra LLM call is needed.
-
-This module exists for backwards compatibility with callers that expect a
-``SignalProcessor.process_signal(text)`` interface.
+The PM now produces three separate ratings (see
+:func:`tradingagents.agents.schemas.render_pm_decision`) and stores them
+directly in the graph state.  For backwards compatibility with callers
+that only have the rendered markdown text, the module also supports
+re-parsing via :func:`tradingagents.agents.utils.rating.parse_ratings`.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from tradingagents.agents.utils.rating import parse_rating
+from tradingagents.agents.utils.rating import parse_rating, parse_ratings
+
+
+def extract_signal_from_state(state: dict) -> dict[str, str]:
+    """Return ``{"short": ..., "medium": ..., "long": ...}`` from graph state.
+
+    Prefers the dedicated state fields; falls back to parsing ``final_trade_decision`` text.
+    """
+    text = state.get("final_trade_decision", "")
+    ratings = {}
+    for key in ("short", "medium", "long"):
+        field = f"{key}_term_rating"
+        val = state.get(field, "")
+        if val:
+            ratings[key] = val
+        elif text:
+            ratings_dict = parse_ratings(text)
+            ratings[key] = ratings_dict.get(key, parse_rating(text))
+        else:
+            ratings[key] = "Hold"
+    return ratings
 
 
 class SignalProcessor:
-    """Read the 5-tier rating out of a Portfolio Manager decision."""
+    """Read the three time-horizon ratings from a Portfolio Manager decision."""
 
     def __init__(self, quick_thinking_llm: Any = None):
-        # The LLM argument is accepted for backwards compatibility but no
-        # longer used: the PM's structured output guarantees the rating is
-        # parseable from the rendered markdown without a second LLM call.
         self.quick_thinking_llm = quick_thinking_llm
 
-    def process_signal(self, full_signal: str) -> str:
-        """Return one of Buy / Overweight / Hold / Underweight / Sell."""
-        return parse_rating(full_signal)
+    def process_signal(self, state_or_text: dict | str) -> dict[str, str] | str:
+        """Return a dict of three ratings or a single rating for backwards compat.
+
+        When passed a dict (graph state), returns ``{"short": ..., "medium": ..., "long": ...}``.
+        When passed a string, returns a single ``parse_rating`` result (legacy path).
+        """
+        if isinstance(state_or_text, dict):
+            return extract_signal_from_state(state_or_text)
+        return parse_rating(state_or_text)
