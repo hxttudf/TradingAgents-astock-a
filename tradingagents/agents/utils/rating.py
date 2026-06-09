@@ -33,9 +33,9 @@ _HORIZON_LABELS: dict[str, str] = {
     "长线": "long",
 }
 
-# Matches "**短线评级**: Sell" / "**中线评级**:Hold" — tolerates markdown bold
+# Matches "**短线评级**: Sell" / "**中线评级**:Hold" / "**长线评级**: <Buy>"
 _HORIZON_RE = re.compile(
-    r"\*\*(?P<label>" + "|".join(_HORIZON_LABELS) + r")评级[\s*]*:[\s*]*(?P<rating>\w+)",
+    r"\*\*(?P<label>" + "|".join(_HORIZON_LABELS) + r")评级[\s*]*:[\s*]*[<]?(?P<rating>\w+)",
 )
 
 
@@ -72,7 +72,7 @@ def parse_rating(text: str, default: str = "Hold") -> str:
     last: str | None = None
     for line in text.splitlines():
         for word in line.lower().split():
-            clean = word.strip("*:.,")
+            clean = word.strip("*:.,<>")
             if clean in _RATING_SET:
                 last = clean.capitalize()
     if last:
