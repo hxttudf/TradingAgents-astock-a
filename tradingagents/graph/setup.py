@@ -27,7 +27,7 @@ class GraphSetup:
         self.conditional_logic = conditional_logic
 
     def setup_graph(
-        self, selected_analysts=["market", "social", "news", "fundamentals", "policy", "hot_money", "lockup"]
+        self, selected_analysts=["market", "social", "news", "fundamentals", "policy", "hot_money", "lockup", "institutional"]
     ):
         """Set up and compile the agent workflow graph.
 
@@ -97,6 +97,13 @@ class GraphSetup:
             )
             delete_nodes["lockup"] = create_msg_delete()
             tool_nodes["lockup"] = self.tool_nodes["lockup"]
+
+        if "institutional" in selected_analysts:
+            analyst_nodes["institutional"] = create_institutional_tracker(
+                self.quick_thinking_llm
+            )
+            delete_nodes["institutional"] = create_msg_delete()
+            tool_nodes["institutional"] = self.tool_nodes["institutional"]
 
         # Create quality gate node
         quality_gate_node = create_quality_gate(self.quick_thinking_llm)

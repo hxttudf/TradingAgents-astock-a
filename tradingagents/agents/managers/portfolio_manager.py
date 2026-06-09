@@ -76,7 +76,12 @@ def create_portfolio_manager(llm):
 
 ---
 
-Be decisive and ground every conclusion in specific evidence from the analysts. Output a separate rating for each time horizon — they may differ.{get_language_instruction()}"""
+Be decisive and ground every conclusion in specific evidence from the analysts. Output a separate rating for each time horizon — they may differ.
+输出格式要求（请放在回答最前面，每行一条）：
+**短线评级**: <Buy/Overweight/Hold/Underweight/Sell>
+**中线评级**: <Buy/Overweight/Hold/Underweight/Sell>
+**长线评级**: <Buy/Overweight/Hold/Underweight/Sell>
+{get_language_instruction()}"""
 
         final_trade_decision = invoke_structured_or_freetext(
             structured_llm,

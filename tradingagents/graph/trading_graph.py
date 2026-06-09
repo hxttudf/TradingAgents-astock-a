@@ -60,7 +60,7 @@ class TradingAgentsGraph:
 
     def __init__(
         self,
-        selected_analysts=["market", "social", "news", "fundamentals", "policy", "hot_money", "lockup"],
+        selected_analysts=["market", "social", "news", "fundamentals", "policy", "hot_money", "lockup", "institutional"],
         debug=False,
         config: Dict[str, Any] = None,
         callbacks: Optional[List] = None,
@@ -220,6 +220,20 @@ class TradingAgentsGraph:
                     get_news,
                     get_fundamentals,
                     get_lockup_expiry,
+                ]
+            ),
+            "institutional": ToolNode(
+                [
+                    get_stock_data,
+                    get_fund_flow,
+                    get_northbound_flow,
+                    get_insider_transactions,
+                    get_dragon_tiger_board,
+                    get_industry_comparison,
+                    get_concept_blocks,
+                    get_news,
+                    get_fundamentals,
+                    get_profit_forecast,
                 ]
             ),
         }
@@ -395,6 +409,7 @@ class TradingAgentsGraph:
             "policy_report": final_state.get("policy_report", ""),
             "hot_money_report": final_state.get("hot_money_report", ""),
             "lockup_report": final_state.get("lockup_report", ""),
+            "institutional_report": final_state.get("institutional_report", ""),
             "investment_debate_state": {
                 "bull_history": final_state["investment_debate_state"]["bull_history"],
                 "bear_history": final_state["investment_debate_state"]["bear_history"],

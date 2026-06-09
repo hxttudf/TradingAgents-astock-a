@@ -15,6 +15,7 @@ PIPELINE_STAGES: list[dict[str, str]] = [
     {"id": "fundamentals", "name": "基本面", "icon": "📋", "report_key": "fundamentals_report"},
     {"id": "policy", "name": "政策分析", "icon": "🏛️", "report_key": "policy_report"},
     {"id": "hot_money", "name": "游资追踪", "icon": "🔥", "report_key": "hot_money_report"},
+    {"id": "institutional", "name": "主力追踪", "icon": "🏦", "report_key": "institutional_report"},
     {"id": "lockup", "name": "解禁监控", "icon": "🔒", "report_key": "lockup_report"},
     {"id": "quality_gate", "name": "质量门控", "icon": "✅", "report_key": "data_quality_summary"},
     {"id": "debate", "name": "多空辩论", "icon": "⚔️", "report_key": "investment_plan"},

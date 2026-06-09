@@ -1,4 +1,4 @@
-"""Render the completed analysis report with expandable sections and PDF download."""
+"""Render the completed analysis report with clearly structured sections."""
 
 from __future__ import annotations
 
@@ -8,6 +8,11 @@ from typing import Any
 import streamlit as st
 
 from web.pdf_export import generate_markdown, generate_pdf
+
+# Keys used in historical log vs real-time state differ for some fields.
+_HISTORY_KEY_ALIASES = {
+    "trader_investment_decision": "trader_investment_plan",
+}
 
 
 def _strip_think(text: str) -> str:
@@ -33,8 +38,18 @@ _ANALYST_SECTIONS = [
     ("fundamentals_report", "📋 基本面"),
     ("policy_report", "🏛️ 政策分析"),
     ("hot_money_report", "🔥 游资追踪"),
+    ("institutional_report", "🏦 主力追踪"),
     ("lockup_report", "🔒 解禁/减持"),
 ]
+
+
+def _card(label: str, value: str, color: str) -> str:
+    return f"""
+        <div style="flex:1; min-width:120px; padding:0.8rem;">
+            <div style="font-size:0.7rem; color:#888; letter-spacing:1px;">{label}</div>
+            <div style="font-size:2rem; font-weight:900; color:{color}; margin:0.2rem 0;">{value}</div>
+        </div>
+    """
 
 
 def render_report(
@@ -44,11 +59,27 @@ def render_report(
     signal: dict[str, str] | str,
     elapsed: float | None = None,
 ) -> None:
-    """Render the full analysis report.
+    """Render the full analysis report with a clear reading hierarchy.
 
-    ``signal`` is a dict like ``{"short": "Sell", "medium": "Hold", "long": "Buy"}``,
-    or a plain string for legacy callers.
+    Layout (top to bottom):
+      1. TRADING SIGNAL — three time-horizon cards
+      2. 最终决策       — Portfolio Manager's full decision (THE conclusion)
+      3. 交易方案       — Trader's concrete proposal
+      4. 多空辩论       — bull/bear debate driving the decision
+      5. 分析师报告     — collapsible per-analyst detail
+      6. 风控评估       — collapsible risk debate
+      7. 数据质量       — collapsible
     """
+
+    # ── helpers ──────────────────────────────────────────────────────────
+
+    def _get(key: str, default: str = "") -> str:
+        val = final_state.get(key, "")
+        if not val:
+            alias = _HISTORY_KEY_ALIASES.get(key, "")
+            if alias:
+                val = final_state.get(alias, "")
+        return str(val) if val else default
 
     stats_html = ""
     if elapsed is not None:
@@ -60,17 +91,14 @@ def render_report(
     else:
         signals = signal
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # 1. TRADING SIGNAL
+    # ═══════════════════════════════════════════════════════════════════════
     signal_cards = ""
     for key in ("short", "medium", "long"):
         s = signals.get(key, "Hold")
         color, _ = _signal_style(s)
-        display = s.upper()
-        signal_cards += f"""
-            <div style="flex:1; min-width:120px; padding:0.8rem;">
-                <div style="font-size:0.7rem; color:#888; letter-spacing:1px;">{_HORIZON_CN[key]}</div>
-                <div style="font-size:2rem; font-weight:900; color:{color}; margin:0.2rem 0;">{display}</div>
-            </div>
-        """
+        signal_cards += _card(_HORIZON_CN[key], s.upper(), color)
 
     st.markdown(
         f"""
@@ -97,8 +125,6 @@ def render_report(
 
     st.caption("⚠️ 本报告由 AI 自动生成，仅供学习研究，不构成投资建议。")
 
-    # Markdown export always works (no font dependency); PDF is generated
-    # lazily and guarded so a PDF/font failure never crashes the results page.
     col_md, col_pdf, col_spacer = st.columns([1, 1, 2])
     with col_md:
         md_text = generate_markdown(final_state, ticker, trade_date, signal)
@@ -119,7 +145,7 @@ def render_report(
                 mime="application/pdf",
                 use_container_width=True,
             )
-        except Exception as exc:  # noqa: BLE001 — never let PDF crash the page
+        except Exception as exc:
             st.button(
                 "📄 PDF 不可用",
                 disabled=True,
@@ -129,21 +155,27 @@ def render_report(
 
     st.markdown("---")
 
-    inv_plan = final_state.get("investment_plan", "")
-    if inv_plan:
-        st.markdown("### 👔 最终投资建议")
-        st.markdown(_strip_think(str(inv_plan)))
+    # ═══════════════════════════════════════════════════════════════════════
+    # 2. 最终决策 — Portfolio Manager (THE conclusion)
+    # ═══════════════════════════════════════════════════════════════════════
+    final_decision = _get("final_trade_decision")
+    if final_decision:
+        st.markdown("### 📋 最终决策")
+        st.markdown(_strip_think(final_decision))
         st.markdown("---")
 
-    st.markdown("### 📊 分析师报告")
+    # ═══════════════════════════════════════════════════════════════════════
+    # 3. 交易方案 — Trader
+    # ═══════════════════════════════════════════════════════════════════════
+    trader_text = _get("trader_investment_decision") or _get("trader_investment_plan")
+    if trader_text:
+        st.markdown("### 💹 交易方案")
+        st.markdown(_strip_think(trader_text))
+        st.markdown("---")
 
-    for key, title in _ANALYST_SECTIONS:
-        content = final_state.get(key, "")
-        if not content:
-            continue
-        with st.expander(title, expanded=False):
-            st.markdown(_strip_think(str(content)))
-
+    # ═══════════════════════════════════════════════════════════════════════
+    # 4. 多空辩论
+    # ═══════════════════════════════════════════════════════════════════════
     debate = final_state.get("investment_debate_state")
     if debate and isinstance(debate, dict):
         st.markdown("### ⚔️ 多空辩论")
@@ -154,12 +186,22 @@ def render_report(
             st.markdown(_strip_think(debate.get("bear_history", "") or "无数据"))
         with tab_judge:
             st.markdown(_strip_think(debate.get("judge_decision", "") or "无数据"))
+        st.markdown("---")
 
-    trader_decision = final_state.get("trader_investment_decision", "")
-    if trader_decision:
-        with st.expander("💹 交易员决策", expanded=False):
-            st.markdown(_strip_think(str(trader_decision)))
+    # ═══════════════════════════════════════════════════════════════════════
+    # 5. 分析师报告 (collapsible detail)
+    # ═══════════════════════════════════════════════════════════════════════
+    visible_analysts = [(k, t) for k, t in _ANALYST_SECTIONS if final_state.get(k)]
+    if visible_analysts:
+        st.markdown("### 📊 分析师报告")
+        for key, title in visible_analysts:
+            with st.expander(title, expanded=False):
+                st.markdown(_strip_think(str(final_state[key])))
+        st.markdown("---")
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # 6. 风控评估 (collapsible)
+    # ═══════════════════════════════════════════════════════════════════════
     risk = final_state.get("risk_debate_state")
     if risk and isinstance(risk, dict):
         st.markdown("### 🛡️ 风控评估")
@@ -172,7 +214,11 @@ def render_report(
             st.markdown(_strip_think(risk.get("neutral_history", "") or "无数据"))
         with tab_rj:
             st.markdown(_strip_think(risk.get("judge_decision", "") or "无数据"))
+        st.markdown("---")
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # 7. 数据质量 (collapsible)
+    # ═══════════════════════════════════════════════════════════════════════
     dqs = final_state.get("data_quality_summary", "")
     if dqs:
         with st.expander("✅ 数据质量", expanded=False):
