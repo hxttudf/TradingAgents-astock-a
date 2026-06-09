@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
+from pathlib import Path
 
 import streamlit as st
 
 from tradingagents.llm_clients.model_catalog import MODEL_OPTIONS
 from web.history import delete_analysis, get_history
+
+_UI_CONFIG_PATH = Path.home() / ".tradingagents" / "ui_config.json"
 
 # Provider display names in recommended order
 _PROVIDERS: list[tuple[str, str]] = [
@@ -41,42 +45,52 @@ def _resolve_user_input(raw: str) -> tuple[str, str | None]:
         return "", str(e)
 
 
-def _restore_llm_config_from_params() -> None:
-    """Restore LLM config from query params into session state (page refresh)."""
-    if "llm_provider" in st.query_params:
-        p = st.query_params["llm_provider"]
-        if p in _PROVIDER_KEYS:
-            st.session_state.setdefault("llm_provider", p)
-            st.session_state.setdefault("llm_provider_idx", _PROVIDER_KEYS.index(p))
-            if p in MODEL_OPTIONS:
-                qm = st.query_params.get("quick_think_llm", "")
-                if qm:
-                    q_vals = [v for _, v in MODEL_OPTIONS[p]["quick"]]
-                    if qm in q_vals:
-                        st.session_state.setdefault("quick_model_idx", q_vals.index(qm))
-                dm = st.query_params.get("deep_think_llm", "")
-                if dm:
-                    d_vals = [v for _, v in MODEL_OPTIONS[p]["deep"]]
-                    if dm in d_vals:
-                        st.session_state.setdefault("deep_model_idx", d_vals.index(dm))
-    if "llm_base_url" in st.query_params:
-        st.session_state.setdefault("llm_base_url", st.query_params["llm_base_url"])
+def _load_llm_config() -> None:
+    """Restore LLM config from local file into session state (page refresh)."""
+    if not _UI_CONFIG_PATH.exists():
+        return
+    try:
+        cfg = json.loads(_UI_CONFIG_PATH.read_text())
+    except (json.JSONDecodeError, OSError):
+        return
+    p = cfg.get("llm_provider", "")
+    if p in _PROVIDER_KEYS:
+        st.session_state.setdefault("llm_provider", p)
+        st.session_state.setdefault("llm_provider_idx", _PROVIDER_KEYS.index(p))
+        if p in MODEL_OPTIONS:
+            qm = cfg.get("quick_think_llm", "")
+            if qm:
+                q_vals = [v for _, v in MODEL_OPTIONS[p]["quick"]]
+                if qm in q_vals:
+                    st.session_state.setdefault("quick_model_idx", q_vals.index(qm))
+            dm = cfg.get("deep_think_llm", "")
+            if dm:
+                d_vals = [v for _, v in MODEL_OPTIONS[p]["deep"]]
+                if dm in d_vals:
+                    st.session_state.setdefault("deep_model_idx", d_vals.index(dm))
+    if "llm_base_url" in cfg:
+        st.session_state.setdefault("llm_base_url", cfg["llm_base_url"])
 
 
-def _persist_llm_config_to_params() -> None:
-    """Save current LLM config to query params for cross-refresh persistence."""
-    st.query_params["llm_provider"] = st.session_state.get("llm_provider", "minimax")
-    st.query_params["quick_think_llm"] = st.session_state.get("quick_think_llm", "")
-    st.query_params["deep_think_llm"] = st.session_state.get("deep_think_llm", "")
+def _save_llm_config() -> None:
+    """Save current LLM config to local file for cross-refresh persistence."""
+    cfg = {
+        "llm_provider": st.session_state.get("llm_provider", "minimax"),
+        "quick_think_llm": st.session_state.get("quick_think_llm", ""),
+        "deep_think_llm": st.session_state.get("deep_think_llm", ""),
+    }
     if base_url := st.session_state.get("llm_base_url"):
-        st.query_params["llm_base_url"] = base_url
-    elif "llm_base_url" in st.query_params:
-        del st.query_params["llm_base_url"]
+        cfg["llm_base_url"] = base_url
+    try:
+        _UI_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _UI_CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False))
+    except OSError:
+        pass
 
 
 def _render_llm_config() -> None:
     """Render LLM provider and model selection controls."""
-    _restore_llm_config_from_params()
+    _load_llm_config()
 
     provider_idx = st.selectbox(
         "LLM 供应商",
@@ -135,7 +149,7 @@ def _render_llm_config() -> None:
         ),
     )
 
-    _persist_llm_config_to_params()
+    _save_llm_config()
 
 
 def render_sidebar() -> None:
